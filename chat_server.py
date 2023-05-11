@@ -124,6 +124,24 @@ class Server:
                 else:
                     msg = json.dumps({"action":"connect", "status":"no-user"})
                 mysend(from_sock, msg)
+            
+            elif msg["action"] == "game":
+                to_name = msg["target"]
+                from_name = self.logged_sock2name[from_sock]
+                if to_name == from_name:
+                    msg = json.dumps({"action":"game", "status":"self"})
+                # connect to the peer
+                elif self.group.is_member(to_name):
+                    if self.group.can_game(to_name):
+                        to_sock = self.logged_name2sock[to_name]
+                        self.group.game(from_name, to_name)
+                        msg = json.dumps({"action":"game", "status":"success"})
+                        mysend(to_sock, json.dumps({"action":"game", "status":"request", "from":from_name}))
+                    else:
+                        msg = json.dumps({"action":"game", "status":"busy"})
+                else:
+                    msg = json.dumps({"action":"game", "status":"no-user"})
+                mysend(from_sock, msg)
 #==============================================================================
 # handle messeage exchange: one peer for now. will need multicast later
 #==============================================================================
@@ -137,12 +155,22 @@ class Server:
                     to_sock = self.logged_name2sock[g]
                     self.indices[g].add_msg_and_index(said2)
                     mysend(to_sock, json.dumps({"action":"exchange", "from":msg["from"], "message":msg["message"]}))
+            elif msg["action"] == "play":
+                from_name = self.logged_sock2name[from_sock]
+                pair = self.group.list_me(from_name)
+                to_sock = self.logged_name2sock[pair[1]]
+                mysend(to_sock, json.dumps({"action":"play", "move":msg["move"]}))
 #==============================================================================
 #                 listing available peers
 #==============================================================================
             elif msg["action"] == "list":
                 from_name = self.logged_sock2name[from_sock]
                 msg = self.group.list_all()
+                mysend(from_sock, json.dumps({"action":"list", "results":msg}))
+
+            elif msg["action"] == "free":
+                from_name = self.logged_sock2name[from_sock]
+                msg = self.group.list_loners()
                 mysend(from_sock, json.dumps({"action":"list", "results":msg}))
 #==============================================================================
 #             retrieve a sonnet
@@ -184,6 +212,19 @@ class Server:
                     g = the_guys.pop()
                     to_sock = self.logged_name2sock[g]
                     mysend(to_sock, json.dumps({"action":"disconnect"}))
+                else:
+                    for g in the_guys:
+                        to_sock = self.logged_name2sock[g]
+                        mysend(to_sock, json.dumps({"action":"bye", "from":from_name}))
+           
+            elif msg["action"] == "end":
+                from_name = self.logged_sock2name[from_sock]
+                the_guys = self.group.list_me(from_name)
+                self.group.end(from_name)
+                the_guys.remove(from_name)
+                g = the_guys.pop()
+                to_sock = self.logged_name2sock[g]
+                mysend(to_sock, json.dumps({"action":"end"}))
 #==============================================================================
 #                 the "from" guy really, really has had enough
 #==============================================================================

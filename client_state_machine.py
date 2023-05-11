@@ -5,6 +5,7 @@ Created on Sun Apr  5 00:00:32 2015
 """
 from chat_utils import *
 import json
+from connect_four import Board
 
 class ClientSM:
     def __init__(self, s):
@@ -26,6 +27,28 @@ class ClientSM:
     def get_myname(self):
         return self.me
 
+    def game_with(self, peer):
+        msg = json.dumps({"action":"game", "target":peer})
+        mysend(self.s, msg)
+        response = json.loads(myrecv(self.s))
+        if response["status"] == "success":
+            self.peer = peer
+            self.out_msg += 'You are playing with '+ self.peer + '\n'
+            return (True)
+        elif response["status"] == "busy":
+            self.out_msg += 'User is busy. Please try again later\n'
+        elif response["status"] == "self":
+            self.out_msg += 'Cannot play with yourself (sick)\n'
+        else:
+            self.out_msg += 'User is not online, try again later\n'
+        return(False)
+    
+    def end_game(self):
+        msg = json.dumps({"action":"end"})
+        mysend(self.s, msg)
+        self.out_msg += 'You stopped playing with ' + self.peer + '\n'
+        self.peer = ''
+    
     def connect_to(self, peer):
         msg = json.dumps({"action":"connect", "target":peer})
         mysend(self.s, msg)
@@ -45,7 +68,7 @@ class ClientSM:
     def disconnect(self):
         msg = json.dumps({"action":"disconnect"})
         mysend(self.s, msg)
-        self.out_msg += 'You are disconnected from ' + self.peer + '\n'
+        self.out_msg += '\nYou are disconnected from ' + self.peer + '\n'
         self.peer = ''
 
     def proc(self, my_msg, peer_msg):
@@ -103,6 +126,25 @@ class ClientSM:
                     else:
                         self.out_msg += 'Sonnet ' + poem_idx + ' not found\n\n'
 
+                elif my_msg[0] == "g":
+                    peer = my_msg[1:]
+                    peer = peer.strip()
+                    if self.game_with(peer) == True:
+                        self.state = S_INGAME
+                        self.out_msg += 'Connect to ' + peer + '. Play away!\n\n'
+                        self.out_msg += '-----------------------------------\n'
+                        self.board = Board(peer, self.me)
+                        self.out_msg += str(self.board)
+                        self.out_msg += 'Type p _#_ to place in columns 1 to ' + str(self.board.get_columnlength()) + '\n'
+                    else:
+                        self.out_msg += 'Connection unsuccessful\n'
+
+                elif my_msg == "f":
+                    mysend(self.s, json.dumps({"action":"free"}))
+                    free = json.loads(myrecv(self.s))["results"]
+                    self.out_msg += 'Here are all non occupied users in the system:\n'
+                    self.out_msg += free
+
                 else:
                     self.out_msg += menu
 
@@ -115,6 +157,18 @@ class ClientSM:
                     self.out_msg += '. Chat away!\n\n'
                     self.out_msg += '------------------------------------\n'
                     self.state = S_CHATTING
+
+                elif peer_msg["action"] == "game":
+                    self.peer = peer_msg["from"]
+                    self.out_msg += 'Request from ' + self.peer + '\n'
+                    self.out_msg += 'You are connected with ' + self.peer
+                    self.out_msg += '. Play away!\n\n'
+                    self.out_msg += '------------------------------------\n'
+                    self.state = S_INGAME
+                    self.board = Board(self.me, self.peer)
+                    self.out_msg += str(self.board)
+                    self.out_msg += 'Type p _#_ to place in columns 1 to ' + str(self.board.get_columnlength()) + '\n'
+                    
 
 #==============================================================================
 # Start chatting, 'bye' for quit
@@ -133,12 +187,53 @@ class ClientSM:
                     self.out_msg += "(" + peer_msg["from"] + " joined)\n"
                 elif peer_msg["action"] == "disconnect":
                     self.state = S_LOGGEDIN
+                    self.peer = ''
                     self.out_msg += "Everyone left, you are alone.\n"
+                elif peer_msg["action"] == "bye":
+                    self.out_msg += "(" + peer_msg["from"] + " left)\n"
                 else:
                     self.out_msg += peer_msg["from"] + " " + peer_msg["message"] + "\n"
 
 
             # Display the menu again
+            if self.state == S_LOGGEDIN:
+                self.out_msg += menu
+        
+        elif self.state == S_INGAME:
+            if len(my_msg) > 0:     # my stuff going out
+                if my_msg[0] == 'p' and my_msg[1:].isdigit():
+                    column = int(my_msg[1:].strip())
+                    if self.board.get_winner() == "":
+                        if self.board.my_turn(self.me):
+                            if self.board.placeable(column):
+                                if self.board.place(column):
+                                    mysend(self.s, json.dumps({"action":"play", "move": column}))
+                                    self.out_msg += self.board.get_text()
+                                else:
+                                    self.out_msg += "This column is full"
+                            else:
+                                self.out_msg += "Out of bounds. \nGive a number between 1 and " + str(self.board.get_columnlength()) + '\n'
+                        else:
+                            self.out_msg += "It is not your turn.\n"
+                    else:
+                        self.out_msg += "The game is over. \nContinue chatting or exit to start a new game.\n"
+                else:
+                    mysend(self.s, json.dumps({"action":"exchange", "from":"[" + self.me + "]", "message":my_msg}))
+                    if my_msg == 'bye':
+                        self.end_game()
+                        self.state = S_LOGGEDIN
+                        self.peer = ''
+            if len(peer_msg) > 0:    # peer's stuff, coming in
+                peer_msg = json.loads(peer_msg)
+                if peer_msg["action"] == "end":
+                    self.state = S_LOGGEDIN
+                    self.peer = ''
+                    self.out_msg += "Your partner left, you are alone.\n"
+                elif peer_msg["action"] == "play":
+                    self.board.place(peer_msg["move"])
+                    self.out_msg += self.board.get_text()
+                else:
+                    self.out_msg += peer_msg["from"] + " " + peer_msg["message"] + "\n"
             if self.state == S_LOGGEDIN:
                 self.out_msg += menu
 #==============================================================================
