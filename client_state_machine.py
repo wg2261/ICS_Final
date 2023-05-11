@@ -226,9 +226,9 @@ class ClientSM:
             if len(peer_msg) > 0:    # peer's stuff, coming in
                 peer_msg = json.loads(peer_msg)
                 if peer_msg["action"] == "end":
+                    self.out_msg += self.peer + " left, you are alone.\n"
                     self.state = S_LOGGEDIN
                     self.peer = ''
-                    self.out_msg += "Your partner left, you are alone.\n"
                 elif peer_msg["action"] == "play":
                     self.board.place(peer_msg["move"])
                     self.out_msg += self.board.get_text()

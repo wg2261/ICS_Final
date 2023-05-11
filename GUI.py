@@ -48,6 +48,15 @@ class GUI:
         self.pls.place(relheight = 0.15,
                        relx = 0.2, 
                        rely = 0.07)
+        
+        self.labelErr = Label(self.login,
+                               text = "",
+                               font = "Helvetica 12",
+                               justify = CENTER,
+                               fg = "#FF0000")
+        self.labelErr.place(relx = 0.5, 
+                                    rely = 0.25, anchor=CENTER)
+        
         # create a Label
         self.labelName = Label(self.login,
                                text = "Name: ",
@@ -105,11 +114,6 @@ class GUI:
             msg = json.dumps({"action":"login", "name": name, "pw": pw})
             self.send(msg)
             response = json.loads(self.recv())
-            self.labelErr = Label(self.login,
-                               text = response["status"],
-                               font = "Helvetica 12",
-                               justify = CENTER,
-                               fg = "#FF0000")
             if response["status"] == 'ok':
                 self.login.destroy()
                 self.sm.set_state(S_LOGGEDIN)
@@ -127,9 +131,8 @@ class GUI:
                 process.daemon = True
                 process.start()
             else:
-                self.labelErr.config(text = response["status"])
-                self.labelErr.place(relx = 0.5, 
-                                    rely = 0.25, anchor=CENTER)
+                self.labelErr.configure(text = response["status"])
+                
   
     # The main layout of the chat
     def layout(self, name):

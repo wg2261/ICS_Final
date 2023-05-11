@@ -88,6 +88,20 @@ class Server:
     def logout(self, sock):
         #remove sock from all lists
         name = self.logged_sock2name[sock]
+        the_guys = self.group.list_me(name)
+        the_guys.remove(name)
+        if len(the_guys) == 1:  # only one left
+            g = the_guys.pop()
+            to_sock = self.logged_name2sock[g]
+            in_game, key = self.group.find_game(g)
+            if in_game:
+                mysend(to_sock, json.dumps({"action":"end"}))
+            else:
+                mysend(to_sock, json.dumps({"action":"disconnect"}))
+        else:
+            for g in the_guys:
+                to_sock = self.logged_name2sock[g]
+                mysend(to_sock, json.dumps({"action":"bye", "from":name}))
         pkl.dump(self.indices[name], open(name + '.idx','wb'))
         del self.indices[name]
         del self.logged_name2sock[name]
