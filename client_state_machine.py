@@ -5,7 +5,6 @@ Created on Sun Apr  5 00:00:32 2015
 """
 from chat_utils import *
 import json
-from connect_four import Board
 
 class ClientSM:
     def __init__(self, s):
@@ -131,11 +130,8 @@ class ClientSM:
                     peer = peer.strip()
                     if self.game_with(peer) == True:
                         self.state = S_INGAME
-                        self.out_msg += 'Connect to ' + peer + '. Play away!\n\n'
+                        self.out_msg += 'Connect to ' + peer + '. \nEnter p _#_ to play!\n\n'
                         self.out_msg += '-----------------------------------\n'
-                        self.board = Board(peer, self.me)
-                        self.out_msg += str(self.board)
-                        self.out_msg += 'Type p _#_ to place in columns 1 to ' + str(self.board.get_columnlength()) + '\n'
                     else:
                         self.out_msg += 'Connection unsuccessful\n'
 
@@ -162,12 +158,9 @@ class ClientSM:
                     self.peer = peer_msg["from"]
                     self.out_msg += 'Request from ' + self.peer + '\n'
                     self.out_msg += 'You are connected with ' + self.peer
-                    self.out_msg += '. Play away!\n\n'
+                    self.out_msg += '. \nEnter p _#_ to start!\n\n'
                     self.out_msg += '------------------------------------\n'
                     self.state = S_INGAME
-                    self.board = Board(self.me, self.peer)
-                    self.out_msg += str(self.board)
-                    self.out_msg += 'Type p _#_ to place in columns 1 to ' + str(self.board.get_columnlength()) + '\n'
                     
 
 #==============================================================================
@@ -203,20 +196,11 @@ class ClientSM:
             if len(my_msg) > 0:     # my stuff going out
                 if my_msg[0] == 'p' and my_msg[1:].isdigit():
                     column = int(my_msg[1:].strip())
-                    if self.board.get_winner() == "":
-                        if self.board.my_turn(self.me):
-                            if self.board.placeable(column):
-                                if self.board.place(column):
-                                    mysend(self.s, json.dumps({"action":"play", "move": column}))
-                                    self.out_msg += self.board.get_text()
-                                else:
-                                    self.out_msg += "This column is full"
-                            else:
-                                self.out_msg += "Out of bounds. \nGive a number between 1 and " + str(self.board.get_columnlength()) + '\n'
-                        else:
-                            self.out_msg += "It is not your turn.\n"
-                    else:
-                        self.out_msg += "The game is over. \nContinue chatting or exit to start a new game.\n"
+                    mysend(self.s, json.dumps({"action":"play", "move": column}))
+                    server_msg = json.loads(myrecv(self.s))
+                    self.out_msg += server_msg["message"]
+                    game = server_msg["board"]
+                    self.out_msg += game
                 else:
                     mysend(self.s, json.dumps({"action":"exchange", "from":"[" + self.me + "]", "message":my_msg}))
                     if my_msg == 'bye':
@@ -230,8 +214,7 @@ class ClientSM:
                     self.state = S_LOGGEDIN
                     self.peer = ''
                 elif peer_msg["action"] == "play":
-                    self.board.place(peer_msg["move"])
-                    self.out_msg += self.board.get_text()
+                    self.out_msg += peer_msg["board"]
                 else:
                     self.out_msg += peer_msg["from"] + " " + peer_msg["message"] + "\n"
             if self.state == S_LOGGEDIN:

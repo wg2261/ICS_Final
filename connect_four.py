@@ -1,5 +1,3 @@
-import numpy as np
-
 class Board:
     def __init__(self, to, sender):
         self.players = {0:["X", sender], 1:["O", to]}
@@ -9,6 +7,9 @@ class Board:
         self.turn = 1
         self.winner = ""
 
+    def get_board(self):
+        return self.board
+    
     def get_columnlength(self):
         return self.column
 
@@ -47,7 +48,7 @@ class Board:
         return pieces
     
     def my_turn(self, player):
-        return player == self.players[self.turn % 2][1]
+        return player == self.players[self.turn][1]
     
     def placeable(self, column):
         return column > 0 and column <= self.column
@@ -57,9 +58,10 @@ class Board:
         r = self.get_nextrow(c)
         if r == -1:
             return False
-        piece = self.players[self.turn % 2][0]
+        piece = self.players[self.turn][0]
         self.board[r][c] = piece
         self.turn += 1
+        self.turn %= 2
         self.win(piece, r, c)
         return True
     
@@ -85,12 +87,12 @@ class Board:
         pos = self.get_posdia(r, c)
         neg = self.get_negdia(r, c)
         if self.check(column, p) or self.check(row, p) or self.check(pos, p) or self.check(neg, p):
-            self.winner = self.players[self.turn % 2][1]
+            self.winner = self.players[self.turn][1]
     
     def get_winner(self):
         return self.winner
     
-    def get_text(self):
+    def get_update(self):
         text = str(self)
         if self.winner == "Tie":
             text += "Tie!"

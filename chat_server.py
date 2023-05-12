@@ -14,6 +14,7 @@ import json
 import pickle as pkl
 from chat_utils import *
 import chat_group as grp
+from connect_four import Board
 
 class Server:
     def __init__(self):
@@ -22,6 +23,7 @@ class Server:
         self.logged_sock2name = {} # dict mapping socket to user name
         self.name_pass = {}
         self.all_sockets = []
+        self.games = []
         self.group = grp.Group()
         #start server
         self.server=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -151,6 +153,7 @@ class Server:
                         self.group.game(from_name, to_name)
                         msg = json.dumps({"action":"game", "status":"success"})
                         mysend(to_sock, json.dumps({"action":"game", "status":"request", "from":from_name}))
+                        self.games.append(Board(to_name, from_name))
                     else:
                         msg = json.dumps({"action":"game", "status":"busy"})
                 else:
@@ -169,11 +172,31 @@ class Server:
                     to_sock = self.logged_name2sock[g]
                     self.indices[g].add_msg_and_index(said2)
                     mysend(to_sock, json.dumps({"action":"exchange", "from":msg["from"], "message":msg["message"]}))
+            
             elif msg["action"] == "play":
                 from_name = self.logged_sock2name[from_sock]
                 pair = self.group.list_me(from_name)
                 to_sock = self.logged_name2sock[pair[1]]
-                mysend(to_sock, json.dumps({"action":"play", "move":msg["move"]}))
+                in_game, key = self.group.find_game(from_name)
+                game = self.games[key - 1]
+                column = msg["move"]
+                comment = ""
+                if game.get_winner() == "":
+                    if game.my_turn(from_name):
+                        if game.placeable(column):
+                            if game.place(column):
+                                mysend(to_sock, json.dumps({"action":"play", "board": game.get_update()}))
+                            else:
+                                comment = "This column is full"
+                        else:
+                            comment += "Out of bounds. \nGive a number between 1 and " + str(game.get_columnlength()) + '\n'
+                    else:
+                        comment += "It is not your turn.\n"
+                else:
+                    comment += "The game is over. \nContinue chatting or exit to start a new game.\n"
+                mysend(from_sock, json.dumps({"action":"play", "board": game.get_update(),"message":comment}))
+
+
 #==============================================================================
 #                 listing available peers
 #==============================================================================
