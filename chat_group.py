@@ -37,6 +37,10 @@ class Group:
 
     def is_member(self, name):
         return name in self.members.keys()
+    
+    def is_alone(self, name):
+        in_game, group_key = self.find_game(name)
+        return not in_game
 
     def leave(self, name):
         self.disconnect(name)

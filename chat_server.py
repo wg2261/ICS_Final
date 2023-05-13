@@ -130,13 +130,16 @@ class Server:
                     msg = json.dumps({"action":"connect", "status":"self"})
                 # connect to the peer
                 elif self.group.is_member(to_name):
-                    to_sock = self.logged_name2sock[to_name]
-                    self.group.connect(from_name, to_name)
-                    the_guys = self.group.list_me(from_name)
-                    msg = json.dumps({"action":"connect", "status":"success"})
-                    for g in the_guys[1:]:
-                        to_sock = self.logged_name2sock[g]
-                        mysend(to_sock, json.dumps({"action":"connect", "status":"request", "from":from_name}))
+                    if self.group.is_alone(to_name):
+                        to_sock = self.logged_name2sock[to_name]
+                        self.group.connect(from_name, to_name)
+                        the_guys = self.group.list_me(from_name)
+                        msg = json.dumps({"action":"connect", "status":"success"})
+                        for g in the_guys[1:]:
+                            to_sock = self.logged_name2sock[g]
+                            mysend(to_sock, json.dumps({"action":"connect", "status":"request", "from":from_name}))
+                    else:
+                        msg = json.dumps({"action":"connect", "status":"busy"})
                 else:
                     msg = json.dumps({"action":"connect", "status":"no-user"})
                 mysend(from_sock, msg)
@@ -187,7 +190,7 @@ class Server:
                             if game.place(column):
                                 mysend(to_sock, json.dumps({"action":"play", "board": game.get_update()}))
                             else:
-                                comment = "This column is full"
+                                comment = "This column is full\n"
                         else:
                             comment += "Out of bounds. \nGive a number between 1 and " + str(game.get_columnlength()) + '\n'
                     else:
